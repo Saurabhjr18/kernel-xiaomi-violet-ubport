@@ -126,7 +126,6 @@ spidev_sync_write(struct spidev_data *spidev, size_t len)
 			.speed_hz	= spidev->speed_hz,
 			.delay_usecs = 0,
 			.cs_change   = 0,
-			.speed_hz   = 960000,
 		};
 	struct spi_message	m;
 
@@ -190,6 +189,7 @@ spidev_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 	kfree(spidev->rx_buffer);
 	spidev->rx_buffer = NULL;
 
+
  read_unlock:
 	mutex_unlock(&spidev->buf_lock);
 
@@ -206,8 +206,6 @@ spidev_write(struct file *filp, const char __user *buf,
 	unsigned long		missing;
 
 	/* chipselect only toggles at start or end of operation */
-	if (count > bufsiz)
-		return -EMSGSIZE;
 
 	spidev = filp->private_data;
 
