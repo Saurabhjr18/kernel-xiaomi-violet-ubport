@@ -90,8 +90,8 @@
 #define INTF_TEAR_AUTOREFRESH_CONFIG    0x2B4
 #define INTF_TEAR_TEAR_DETECT_CTRL      0x2B8
 
-#define AVR_CONTINUOUS_MODE   1
-#define AVR_ONE_SHOT_MODE     2
+#define IDLE_FPS_HZ     50
+#define QSYNC_RANGE 10
 
 static struct sde_intf_cfg *_intf_offset(enum sde_intf intf,
 		struct sde_mdss_cfg *m,
@@ -136,15 +136,19 @@ static int sde_hw_intf_avr_setup(struct sde_hw_intf *ctx,
 	u32 min_fps, default_fps, diff_fps;
 	u32 vsync_period_slow;
 	u32 avr_vtotal;
-	u32 add_porches;
-
+	u32 add_porches = 0;
 	if (!ctx || !params || !avr_params) {
 		SDE_ERROR("invalid input parameter(s)\n");
 		return -EINVAL;
 	}
 
 	c = &ctx->hw;
-	min_fps = avr_params->min_fps;
+	if (IDLE_FPS_HZ == avr_params->default_fps) {
+		min_fps = avr_params->default_fps;
+	}
+	else {
+		min_fps = avr_params->default_fps - QSYNC_RANGE;
+	}
 	default_fps = avr_params->default_fps;
 	diff_fps = default_fps - min_fps;
 	hsync_period = params->hsync_pulse_width +
@@ -156,7 +160,7 @@ static int sde_hw_intf_avr_setup(struct sde_hw_intf *ctx,
 	add_porches = mult_frac(vsync_period, diff_fps, min_fps);
 	vsync_period_slow = vsync_period + add_porches;
 	avr_vtotal = vsync_period_slow * hsync_period;
-
+	pr_debug("[%s] add_porches is %d, vsync_period_slow  is %d,avr_vtotal is %d",__func__, add_porches, vsync_period_slow, avr_vtotal);
 	SDE_REG_WRITE(c, INTF_AVR_VTOTAL, avr_vtotal);
 
 	return 0;
@@ -178,7 +182,7 @@ static void sde_hw_intf_avr_ctrl(struct sde_hw_intf *ctx,
 		avr_mode = (avr_params->avr_mode == AVR_ONE_SHOT_MODE) ?
 			(BIT(0) | BIT(8)) : 0x0;
 	}
-
+	pr_debug("[%s] avr_ctrl is %d, avr_mode is %d",__func__, avr_ctrl, avr_mode);
 	SDE_REG_WRITE(c, INTF_AVR_CONTROL, avr_ctrl);
 	SDE_REG_WRITE(c, INTF_AVR_MODE, avr_mode);
 }
