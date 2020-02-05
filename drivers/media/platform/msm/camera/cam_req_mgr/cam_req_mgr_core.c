@@ -897,6 +897,7 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 
 	sync_link = link->sync_link;
 	req_id = slot->req_id;
+	sync_rd_idx = sync_link->req.in_q->rd_idx;
 
 	CAM_DBG(CAM_REQ,
 		"link_hdl %x req %lld frame_skip_flag %d ",
@@ -2936,10 +2937,6 @@ int cam_req_mgr_sync_config(
 	link2->is_master = false;
 	link1->initial_skip = false;
 	link2->initial_skip = false;
-	link1->in_msync_mode = false;
-	link2->in_msync_mode = false;
-	link1->initial_sync_req = -1;
-	link2->initial_sync_req = -1;
 
 	link1->in_msync_mode = false;
 	link2->in_msync_mode = false;

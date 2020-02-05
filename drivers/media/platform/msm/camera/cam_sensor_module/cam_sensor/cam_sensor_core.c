@@ -1,5 +1,4 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
- * Copyright (C) 2019 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -571,6 +570,10 @@ void cam_sensor_query_cap(struct cam_sensor_ctrl_t *s_ctrl,
 		s_ctrl->sensordata->subdev_id[SUB_MODULE_OIS];
 	query_cap->slot_info =
 		s_ctrl->soc_info.index;
+#ifdef CONFIG_SOFTLED_CAMERA
+	query_cap->soft_flash_slot_id =
+		s_ctrl->sensordata->subdev_id[SUB_MODULE_LED_SOFT];
+#endif
 }
 
 static uint16_t cam_sensor_id_by_mask(struct cam_sensor_ctrl_t *s_ctrl,
@@ -644,8 +647,8 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	rc = camera_io_dev_read(
 		&(s_ctrl->io_master_info),
 		slave_info->sensor_id_reg_addr,
-		&chipid, CAMERA_SENSOR_I2C_TYPE_WORD,
-		CAMERA_SENSOR_I2C_TYPE_WORD);
+		&chipid, s_ctrl->sensor_probe_addr_type,
+		s_ctrl->sensor_probe_data_type);
 
 	CAM_DBG(CAM_SENSOR, "read id: 0x%x expected id 0x%x:",
 			 chipid, slave_info->sensor_id);
@@ -657,543 +660,7 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	return rc;
 }
 
-static uint16_t msm_sensor_get_sensor_id_samsung_5e8(struct cam_sensor_ctrl_t *s_ctrl,char *sensor_fusion_id)
-{
-	int rc = 0;
-	int i = 0;
-	uint32_t sensorid[16] ={0};
-	struct cam_sensor_i2c_reg_setting  i2c_reg_settings = {0};
-	struct cam_sensor_i2c_reg_array    i2c_reg_array = {0};
-	uint32_t start_add =0x0a04;
-
-
-		    i2c_reg_settings.addr_type = 2;
-			i2c_reg_settings.data_type = 1;
-			i2c_reg_settings.size = 1;
-			i2c_reg_array.reg_addr = 0x0100;
-			i2c_reg_array.reg_data = 0x00;
-			i2c_reg_array.delay = 1;
-			i2c_reg_settings.reg_setting = &i2c_reg_array;
-			rc = camera_io_dev_write(&s_ctrl->io_master_info,
-				&i2c_reg_settings);
-			if (rc) {
-				CAM_ERR(CAM_SENSOR, "lxl page write failed rc %d",
-					rc);
-				return rc;
-			}
-
-		    i2c_reg_settings.addr_type = 2;
-			i2c_reg_settings.data_type = 1;
-			i2c_reg_settings.size = 1;
-			i2c_reg_array.reg_addr = 0x0a00;
-			i2c_reg_array.reg_data = 0x04;
-			i2c_reg_array.delay = 1;
-			i2c_reg_settings.reg_setting = &i2c_reg_array;
-			rc = camera_io_dev_write(&s_ctrl->io_master_info,
-				&i2c_reg_settings);
-			if (rc) {
-				CAM_ERR(CAM_SENSOR, "lxl page write failed rc %d",
-					rc);
-				return rc;
-			}
-
-			i2c_reg_settings.addr_type = 2;
-			i2c_reg_settings.data_type = 1;
-			i2c_reg_settings.size = 1;
-			i2c_reg_array.reg_addr = 0x0a02;
-			i2c_reg_array.reg_data = 0x00;
-			i2c_reg_array.delay = 1;
-			i2c_reg_settings.reg_setting = &i2c_reg_array;
-			rc = camera_io_dev_write(&s_ctrl->io_master_info,
-				&i2c_reg_settings);
-			if (rc) {
-				CAM_ERR(CAM_SENSOR, "lxl page write failed rc %d",
-					rc);
-				return rc;
-			}
-
-					    i2c_reg_settings.addr_type = 2;
-			i2c_reg_settings.data_type = 1;
-			i2c_reg_settings.size = 1;
-			i2c_reg_array.reg_addr = 0x0a00;
-			i2c_reg_array.reg_data = 0x01;
-			i2c_reg_array.delay = 1;
-			i2c_reg_settings.reg_setting = &i2c_reg_array;
-			rc = camera_io_dev_write(&s_ctrl->io_master_info,
-				&i2c_reg_settings);
-			if (rc) {
-				CAM_ERR(CAM_SENSOR, "lxl page write failed rc %d",
-					rc);
-				return rc;
-			}
-			for (i=0; i<16; i++){
-			 rc = camera_io_dev_read(
-				&(s_ctrl->io_master_info),start_add,
-				&sensorid[i], CAMERA_SENSOR_I2C_TYPE_WORD,CAMERA_SENSOR_I2C_TYPE_WORD);
-			CAM_DBG(CAM_SENSOR,"%s:lxl read from reg_add %x sensorid[%d] %d\n", __func__,start_add,i,sensorid[i]);
-			if (rc) {
-				CAM_ERR(CAM_SENSOR, "lxl i2c read failed rc %d", rc);
-				return rc;
-			}
-			start_add += 1;
-			}
-
-	sprintf(sensor_fusion_id, "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x",
-		sensorid[0],
-		sensorid[1],
-		sensorid[2],
-		sensorid[3],
-		sensorid[4],
-		sensorid[5],
-		sensorid[6],
-		sensorid[7],
-		sensorid[8],
-		sensorid[9],
-		sensorid[10],
-		sensorid[12],
-		sensorid[13],
-		sensorid[14],
-		sensorid[15]);
-	return rc;
-}
-
-static uint16_t msm_sensor_get_sensor_id_ovti_13855(struct cam_sensor_ctrl_t *s_ctrl,char *sensor_fusion_id)
-{
-
-	int rc = 0;
-	int i;
-	uint32_t temp = 0;
-	uint32_t sensorid[16] = {0};
-	uint32_t start_add = 0x7000;
-	struct cam_fussid_data {
-    uint32_t addr_type;
-	uint32_t data_type;
-	uint32_t addr;
-	uint32_t data;
-	uint32_t delay;
-   };
-
-	struct cam_fussid_data cam_fussid_data_table[9]={{2,1,0x3d84,0x40,1},
-		                                             {2,1,0x3d88,0x70,1},
-		                                             {2,1,0x3d89,0x00,1},
-		                                             {2,1,0x3d8a,0x70,1},
-		                                             {2,1,0x3d8b,0x0f,1},
-		                                             {2,1,0x3d81,0x01,1},
-		                                             {2,1,0x0100,0x01,1},
-		                                             {2,1,0x5000,0x00,1},
-		                                             {2,1,0x0100,0x00,1}};
-	struct cam_sensor_i2c_reg_setting  i2c_reg_settings = {0};
-	struct cam_sensor_i2c_reg_array    i2c_reg_array = {0};
-
-	// Write address 0x0100 data 0x01
-	i2c_reg_settings.addr_type = cam_fussid_data_table[6].addr_type;
-	i2c_reg_settings.data_type = cam_fussid_data_table[6].data_type;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = cam_fussid_data_table[6].addr;
-	i2c_reg_array.reg_data = cam_fussid_data_table[6].data;
-	i2c_reg_array.delay = cam_fussid_data_table[6].delay;
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-
-	rc = camera_io_dev_write(&s_ctrl->io_master_info,
-				&i2c_reg_settings);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ sensor write failed rc %d", rc);
-		return rc;
-	}
-	// Read address 0x0500
-	rc = camera_io_dev_read(&(s_ctrl->io_master_info),0x5000,&temp,
-		      CAMERA_SENSOR_I2C_TYPE_WORD,CAMERA_SENSOR_I2C_TYPE_WORD);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ sensor read failed rc %d", rc);
-		return rc;
-	}
-   temp &= ~(1<<3);
-	
-	i2c_reg_settings.addr_type = cam_fussid_data_table[7].addr_type;
-	i2c_reg_settings.data_type = cam_fussid_data_table[7].data_type;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = cam_fussid_data_table[7].addr;
-	i2c_reg_array.reg_data = temp;
-	i2c_reg_array.delay =cam_fussid_data_table[7].delay;
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-	
-   for(i = 0; i < 6; i++){
-	i2c_reg_settings.addr_type = cam_fussid_data_table[i].addr_type;
-	i2c_reg_settings.data_type = cam_fussid_data_table[i].data_type;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = cam_fussid_data_table[i].addr;
-	i2c_reg_array.reg_data = cam_fussid_data_table[i].data;
-	i2c_reg_array.delay =cam_fussid_data_table[i].delay;
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-
-	rc = camera_io_dev_write(&s_ctrl->io_master_info,
-				&i2c_reg_settings);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ sensor write failed rc %d", rc);
-		return rc;
-	}
-	}
-	for (i=0; i<16; i++){
-		rc = camera_io_dev_read(&(s_ctrl->io_master_info),start_add,&sensorid[i],
-		      CAMERA_SENSOR_I2C_TYPE_WORD,CAMERA_SENSOR_I2C_TYPE_BYTE);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "xy++ sensor read failed rc %d", rc);
-			return rc;
-		}
-		CAM_DBG(CAM_SENSOR, "lijun++ read from start_add %x sensrid[%d] %d", start_add, i, sensorid[i]);
-	start_add += 1;
-	}
-	// Write addr 0x0100 data 0x01
-	i2c_reg_settings.addr_type = cam_fussid_data_table[8].addr_type;
-	i2c_reg_settings.data_type = cam_fussid_data_table[8].data_type;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = cam_fussid_data_table[8].addr;
-	i2c_reg_array.reg_data = cam_fussid_data_table[8].data;
-	i2c_reg_array.delay =cam_fussid_data_table[8].delay;
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-
-	rc = camera_io_dev_write(&s_ctrl->io_master_info,
-				&i2c_reg_settings);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ sensor write failed rc %d", rc);
-		return rc;
-	}
-
-	sprintf(sensor_fusion_id, "%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x",
-		sensorid[0],
-		sensorid[1],
-		sensorid[2],
-		sensorid[3],
-		sensorid[4],
-		sensorid[5],
-		sensorid[6],
-		sensorid[7],
-		sensorid[8],
-		sensorid[9],
-		sensorid[10],
-		sensorid[11],
-		sensorid[12],
-		sensorid[13],
-		sensorid[14],
-		sensorid[15]);
-	return rc;
-}
-
-static uint16_t msm_sensor_get_sensor_id_sony_imx586(struct cam_sensor_ctrl_t *s_ctrl, char *sensor_fusion_id)
-{
-	int rc = 0;
-	int i;
-	uint32_t is_otp_read_ready = 0;
-	uint32_t sensorid[11] = {0};
-	uint32_t start_add = 0x0A1F;
-
-	struct cam_sensor_i2c_reg_setting  i2c_reg_settings = {0};
-	struct cam_sensor_i2c_reg_array    i2c_reg_array = {0};
-
-	//1. write addr 0x0136 data 0x18 to init sensor
-	i2c_reg_settings.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-	i2c_reg_settings.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = 0x0136;
-	i2c_reg_array.reg_data = 0x18;
-	i2c_reg_array.delay = 1;
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-	rc = camera_io_dev_write(&s_ctrl->io_master_info, &i2c_reg_settings);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ start sensor failed rc %d", rc);
-		return rc;
-	}
-
-	//2. write addr 0x0137 data 0x00 to init sensor
-	i2c_reg_settings.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-	i2c_reg_settings.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = 0x0137;
-	i2c_reg_array.reg_data = 0x00;
-	i2c_reg_array.delay = 1;
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-	rc = camera_io_dev_write(&s_ctrl->io_master_info, &i2c_reg_settings);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ start sensor failed rc %d", rc);
-		return rc;
-	}
-
-	//3. write addr 0x0A02 data 0x7F to selete page 127
-	i2c_reg_settings.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-	i2c_reg_settings.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = 0x0A02;
-	i2c_reg_array.reg_data = 0x7F;
-	i2c_reg_array.delay = 1;
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-	rc = camera_io_dev_write(&s_ctrl->io_master_info, &i2c_reg_settings);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ selete page127 failed rc %d", rc);
-		return rc;
-	}
-
-	//4. write addr 0x0A00 data 0x01 to turn on OTP read mode
-	i2c_reg_settings.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-	i2c_reg_settings.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
-	i2c_reg_settings.size = 1;
-	i2c_reg_array.reg_addr = 0x0A00;
-	i2c_reg_array.reg_data = 0x01;
-	i2c_reg_array.delay = 15;//delay must > 10ms
-	i2c_reg_settings.reg_setting = &i2c_reg_array;
-	rc = camera_io_dev_write(&s_ctrl->io_master_info, &i2c_reg_settings);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ turn on OTP read mode failed rc %d", rc);
-		return rc;
-	}
-
-	//5. read addr 0x0A01
-	rc = camera_io_dev_read(&(s_ctrl->io_master_info), 0x0A01, &is_otp_read_ready,
-		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "xy++ read addr 0x0A01 failed rc %d", rc);
-		return rc;
-	}
-
-	//6. check the bit0 is 1 ?
-	is_otp_read_ready &= 0x01;
-	if (1 == is_otp_read_ready) {
-		CAM_DBG(CAM_SENSOR, "xy++ otp read ready");
-		//7. read fusion id
-		for (i = 0; i < 11; i++) {
-			rc = camera_io_dev_read(&(s_ctrl->io_master_info), start_add, &sensorid[i],
-				  CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
-			CAM_DBG(CAM_SENSOR, "xy++ read from start_add 0x%04x sensor id[%d] data=0x%02x", start_add, i, sensorid[i]);
-			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR, "xy++ read fusion id %x failed rc %d", start_add, rc);
-				return rc;
-			}
-			start_add += 1;
-		}
-	} else {
-		CAM_ERR(CAM_SENSOR, "xy++ otp not read ready");
-		return -1;
-	}
-
-	sprintf(sensor_fusion_id, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-		sensorid[0],
-		sensorid[1],
-		sensorid[2],
-		sensorid[3],
-		sensorid[4],
-		sensorid[5],
-		sensorid[6],
-		sensorid[7],
-		sensorid[8],
-		sensorid[9],
-		sensorid[10]);
-	return rc;
-}
-
-static struct kobject *msm_sensor_device=NULL;
-static char module_info[120] = {0};
-#define CAM_BACK 0
-#define CAM_AUX_BACK 1
-#define CAM_FRONT 2
-
-void msm_sensor_set_module_info(struct cam_sensor_ctrl_t *s_ctrl)
-{
-	printk("s_ctrl->sensordata->camera_type = %d\n", s_ctrl->sensordata->camera_id);
-	switch (s_ctrl->sensordata->camera_id) {
-		case CAM_AUX_BACK:
-			if (0 == is_sensor_name_sony_imx586_found) {
-				strcat(module_info, "back:");
-				if (!strcmp("imx586", s_ctrl->sensordata->sensorName)) {
-					strcat(module_info, "sony_imx586_i");
-				} else if (!strcmp("imx586_sunny", s_ctrl->sensordata->sensorName)) {
-					strcat(module_info, "sony_imx586_ii");
-				} else {
-					pr_err("imx586 msm_sensor_set_module_info error");
-				}
-				strcat(module_info, "\n");
-				is_sensor_name_sony_imx586_found = 1;
-			} else {
-				pr_err("imx586 had already wrote device name, do not write it");
-			}
-			break;
-		case CAM_FRONT:
-			if (0 == is_sensor_name_ovti_13855_found) {
-				strcat(module_info, "front:");
-				if (!strcmp("ov13855", s_ctrl->sensordata->sensorName)) {
-					strcat(module_info, "omnivision_ov13855_i");
-				} else if (!strcmp("ov13855_sunny", s_ctrl->sensordata->sensorName)) {
-					strcat(module_info, "omnivision_ov13855_ii");
-				} else {
-					pr_err("ov13855 msm_sensor_set_module_info error");
-				}
-				strcat(module_info, "\n");
-				is_sensor_name_ovti_13855_found = 1;
-			} else {
-				pr_err("ov13855 had already wrote device name, do not write it");
-			}
-			break;
-		case CAM_BACK:
-			if (0 == is_sensor_name_samsung_5e8_found) {
-				strcat(module_info, "aux_back:");
-				if (!strcmp("s5k5e8", s_ctrl->sensordata->sensorName)) {
-					strcat(module_info, "samsung_s5k5e8_i");
-				} else if (!strcmp("s5k5e8_sunny", s_ctrl->sensordata->sensorName)) {
-					strcat(module_info, "samsung_s5k5e8_ii");
-				} else {
-					pr_err("s5k5e8 msm_sensor_set_module_info error");
-				}
-				strcat(module_info, "\n");
-				is_sensor_name_samsung_5e8_found = 1;
-			} else {
-				pr_err("s5k5e8 had already wrote device name, do not write it");
-			}
-			break;
-		default:
-			pr_err("unknown sensor");
-			break;
-	}
-	printk("s_ctrl->sensordata->camera_type = %d,camera name = %s\n", s_ctrl->sensordata->camera_id,s_ctrl->sensordata->sensorName);
-}
-
-static ssize_t msm_sensor_module_id_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	ssize_t rc = 0;
-
-	sprintf(buf, "%s\n", module_info);
-	rc = strlen(buf) + 1;
-
-	return rc;
-}
-
-static DEVICE_ATTR(sensor, 0444, msm_sensor_module_id_show, NULL);
-
-int32_t msm_sensor_init_device_name(void)
-{
-	int32_t rc = 0;
-	pr_err("%s %d\n", __func__,__LINE__);
-	if(msm_sensor_device != NULL){
-		pr_err("Macle android_camera already created\n");
-		return 0;
-	}
-	msm_sensor_device = kobject_create_and_add("android_camera", NULL);
-	if (msm_sensor_device == NULL) {
-		printk("%s: subsystem_register failed\n", __func__);
-		rc = -ENOMEM;
-		return rc ;
-	}
-	rc = sysfs_create_file(msm_sensor_device, &dev_attr_sensor.attr);
-	if (rc) {
-		printk("%s: sysfs_create_file failed\n", __func__);
-		kobject_del(msm_sensor_device);
-	}
-
-	return 0 ;
-}
-
-void msm_sensor_set_sesnor_id(struct cam_sensor_ctrl_t *s_ctrl)
-{
-	char  sensor_fusion_id_tmp[128] = {0};
-	int rc = 0;
-
-	switch (s_ctrl->sensordata->camera_id) {
-		case CAM_AUX_BACK:
-			if (0 == is_sensor_id_sony_imx586_found) {
-				if((!strcmp("imx586", s_ctrl->sensordata->sensorName))||(!strcmp("imx586_sunny", s_ctrl->sensordata->sensorName))){
-					rc = msm_sensor_get_sensor_id_sony_imx586(s_ctrl, sensor_fusion_id_tmp);
-					if (rc < 0){
-						CAM_ERR(CAM_SENSOR,"read %s fusion id failed\n", s_ctrl->sensordata->sensorName);
-						is_sensor_id_sony_imx586_found = 0;
-					} else {
-						strcat(sensor_fusion_id, "back: ");
-						strcat(sensor_fusion_id, sensor_fusion_id_tmp);
-						strcat(sensor_fusion_id, "\n");
-						is_sensor_id_sony_imx586_found = 1;
-						CAM_ERR(CAM_SENSOR, "read %s fusion id = %s", s_ctrl->sensordata->sensorName, sensor_fusion_id_tmp);
-					}
-				}
-			} else {
-				pr_err("imx586 had already wrote fusion id, do not write it");
-			}
-			break;
-		case CAM_BACK:
-			if (0 == is_sensor_id_samsung_5e8_found) {
-				if((!strcmp("s5k5e8", s_ctrl->sensordata->sensorName))||(!strcmp("s5k5e8_sunny", s_ctrl->sensordata->sensorName))){
-					rc = msm_sensor_get_sensor_id_samsung_5e8(s_ctrl,sensor_fusion_id_tmp);
-					if (rc < 0){
-						CAM_ERR(CAM_SENSOR,"read %s fusion id failed\n", s_ctrl->sensordata->sensorName);
-						is_sensor_id_samsung_5e8_found = 0;
-					} else {
-						strcat(sensor_fusion_id, "back_aux: ");
-						strcat(sensor_fusion_id, sensor_fusion_id_tmp);
-						strcat(sensor_fusion_id, "\n");
-						is_sensor_id_samsung_5e8_found = 1;
-						CAM_ERR(CAM_SENSOR, "read %s fusion id = %s", s_ctrl->sensordata->sensorName, sensor_fusion_id_tmp);
-					}
-				}
-			} else {
-				pr_err("s5k5e8 had already wrote fusion id, do not write it");
-			}
-			break;
-		case CAM_FRONT:
-			if (0 == is_sensor_id_ovti_13855_found) {
-				if((!strcmp("ov13855", s_ctrl->sensordata->sensorName))||(!strcmp("ov13855_sunny", s_ctrl->sensordata->sensorName))) {
-					rc = msm_sensor_get_sensor_id_ovti_13855(s_ctrl,sensor_fusion_id_tmp);
-					if (rc < 0){
-						CAM_ERR(CAM_SENSOR,"read %s fusion id failed\n", s_ctrl->sensordata->sensorName);
-						is_sensor_id_ovti_13855_found = 0;
-					} else {
-						strcat(sensor_fusion_id, "front: ");
-						strcat(sensor_fusion_id, sensor_fusion_id_tmp);
-						strcat(sensor_fusion_id, "\n");
-						is_sensor_id_ovti_13855_found = 1;
-						CAM_ERR(CAM_SENSOR, "read %s fusion id = %s", s_ctrl->sensordata->sensorName, sensor_fusion_id_tmp);
-					}
-				}
-			} else {
-				pr_err("ov13855 had already wrote fusion id, do not write it");
-			}
-			break;
-		default:
-			CAM_ERR(CAM_SENSOR, "unknown sensor");
-			break;
-	}
-}
-
-static ssize_t msm_sensor_id_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	ssize_t rc = 0;
-
-	sprintf(buf, "%s", sensor_fusion_id);
-	rc = strlen(buf) + 1;
-
-	return rc;
-}
-
-static DEVICE_ATTR(sensorid, 0444, msm_sensor_id_show, NULL);
-
-int32_t msm_sensorid_init_device_name(void)
-{
-	int32_t rc = 0;
-	if(msm_sensorid_device != NULL){
-		pr_err("Macle android_camera already created\n");
-		return 0;
-	}
-	msm_sensorid_device = kobject_create_and_add("camera_sensorid", NULL);
-	if (msm_sensorid_device == NULL) {
-		CAM_ERR(CAM_SENSOR,"%s: subsystem_register failed\n", __func__);
-		rc = -ENOMEM;
-		return rc ;
-	}
-	rc = sysfs_create_file(msm_sensorid_device, &dev_attr_sensorid.attr);
-	if (rc) {
-		CAM_ERR(CAM_SENSOR,"%s: sysfs_create_file failed\n", __func__);
-		kobject_del(msm_sensorid_device);
-	}
-
-	return 0 ;
-}
-
+static uint32_t g_operation_mode;
 int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
@@ -1325,6 +792,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
+		g_operation_mode = sensor_acq_dev.operation_mode;
+		CAM_DBG(CAM_SENSOR, "operation mode :%d", g_operation_mode);
+
 		bridge_params.session_hdl = sensor_acq_dev.session_handle;
 		bridge_params.ops = &s_ctrl->bridge_intf.ops;
 		bridge_params.v4l2_sub_dev_flag = 0;
@@ -1435,6 +905,14 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
+		if (s_ctrl->is_mipi_switch == 1) {
+			rc = cam_sensor_core_mipi_switch(power_info, &s_ctrl->soc_info, 1);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "mipi switch is failed:%d", rc);
+				goto release_mutex;
+			}
+		}
+
 		if (s_ctrl->i2c_data.streamon_settings.is_settings_valid &&
 			(s_ctrl->i2c_data.streamon_settings.request_id == 0)) {
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
@@ -1459,6 +937,14 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			"Not in right state to stop : %d",
 			s_ctrl->sensor_state);
 			goto release_mutex;
+		}
+
+		if (s_ctrl->is_mipi_switch == 1) {
+			rc = cam_sensor_core_mipi_switch(power_info, &s_ctrl->soc_info, 0);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "mipi switch is failed:%d", rc);
+				goto release_mutex;
+			}
 		}
 
 		if (s_ctrl->i2c_data.streamoff_settings.is_settings_valid &&
@@ -1525,6 +1011,98 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 	}
 		break;
+	case CAM_UPDATE_REG: {
+		struct cam_sensor_i2c_reg_setting user_reg_setting;
+		struct cam_sensor_i2c_reg_array *i2c_reg_setting = NULL;
+		int i;
+
+		rc = copy_from_user(&user_reg_setting, (void __user *)cmd->handle, sizeof(user_reg_setting));
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "Copy data from user space failed\n");
+			goto release_mutex;
+		}
+
+		CAM_DBG(CAM_SENSOR, "CAM_UPDATE_REG reg setting size = %d", user_reg_setting.size);
+		i2c_reg_setting = kzalloc(sizeof(struct cam_sensor_i2c_reg_array) *
+			user_reg_setting.size, GFP_KERNEL);
+		if (!i2c_reg_setting) {
+			rc = -ENOMEM;
+			CAM_ERR(CAM_SENSOR, "kzalloc memory failed\n");
+			goto release_mutex;
+		}
+
+		rc = copy_from_user(i2c_reg_setting, (void __user *)user_reg_setting.reg_setting,
+			sizeof(struct cam_sensor_i2c_reg_array) * user_reg_setting.size);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "Copy i2c setting from user space failed\n");
+			kfree(i2c_reg_setting);
+			goto release_mutex;
+		}
+		user_reg_setting.reg_setting = i2c_reg_setting;
+
+		for (i = 0; i < user_reg_setting.size; i++) {
+			CAM_DBG(CAM_SENSOR, "CAM_UPDATE_REG reg_addr=0x%x, reg_value=0x%x",
+				i2c_reg_setting[i].reg_addr, i2c_reg_setting[i].reg_data);
+		}
+
+		rc = camera_io_dev_write(&s_ctrl->io_master_info, &user_reg_setting);
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "Write setting failed, rc = %d\n", rc);
+
+		kfree(i2c_reg_setting);
+	}
+	break;
+	case CAM_READ_REG: {
+		struct cam_sensor_i2c_reg_setting user_reg_setting;
+		struct cam_sensor_i2c_reg_array *i2c_reg_setting;
+		int ret = 0;
+		int i;
+
+		rc = copy_from_user(&user_reg_setting, (void __user *)cmd->handle, sizeof(user_reg_setting));
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "Copy data from user space failed");
+			goto release_mutex;
+		}
+
+		CAM_DBG(CAM_SENSOR, "CAM_READ_REG reg setting size = %d", user_reg_setting.size);
+		i2c_reg_setting = kzalloc(sizeof(struct cam_sensor_i2c_reg_array) *
+			user_reg_setting.size, GFP_KERNEL);
+		if (!i2c_reg_setting) {
+			rc = -ENOMEM;
+			CAM_ERR(CAM_SENSOR, "kzalloc memory failed\n");
+			goto release_mutex;
+		}
+
+		rc = copy_from_user(i2c_reg_setting, (void __user *)user_reg_setting.reg_setting,
+			sizeof(struct cam_sensor_i2c_reg_array) * user_reg_setting.size);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "Copy i2c setting from user space failed");
+			kfree(i2c_reg_setting);
+			goto release_mutex;
+		}
+
+		for (i = 0; i < user_reg_setting.size; i++) {
+			ret += camera_io_dev_read(
+				&(s_ctrl->io_master_info),
+				i2c_reg_setting[i].reg_addr,
+				&i2c_reg_setting[i].reg_data, user_reg_setting.addr_type,
+				user_reg_setting.data_type);
+			CAM_DBG(CAM_SENSOR, "CAM_READ_REG reg_addr=0x%x, reg_value=0x%x, sid = 0x%x",
+				i2c_reg_setting[i].reg_addr, i2c_reg_setting[i].reg_data, s_ctrl->io_master_info.cci_client->sid);
+		}
+
+		if (copy_to_user((void __user *)user_reg_setting.reg_setting, i2c_reg_setting,
+			sizeof(struct cam_sensor_i2c_reg_array) * user_reg_setting.size) || ret != 0) {
+			CAM_ERR(CAM_SENSOR, "Copy data to user space failed");
+			rc = -EFAULT;
+		}
+		if (copy_to_user((void __user *)cmd->handle, &user_reg_setting, sizeof(user_reg_setting)) || ret != 0) {
+			CAM_ERR(CAM_SENSOR, "Copy data to user space failed");
+			rc = -EFAULT;
+		}
+		kfree(i2c_reg_setting);
+	}
+	break;
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid Opcode: %d", cmd->op_code);
 		rc = -EINVAL;
@@ -1564,11 +1142,20 @@ int cam_sensor_publish_dev_info(struct cam_req_mgr_device_info *info)
 
 	info->dev_id = CAM_REQ_MGR_DEVICE_SENSOR;
 	strlcpy(info->name, CAM_SENSOR_NAME, sizeof(info->name));
-	if (s_ctrl->pipeline_delay >= 1 && s_ctrl->pipeline_delay <= 3)
+	if (s_ctrl->pipeline_delay >= 0 && s_ctrl->pipeline_delay <= 3)
 		info->p_delay = s_ctrl->pipeline_delay;
 	else
 		info->p_delay = 2;
 	info->trigger = CAM_TRIGGER_POINT_SOF;
+
+	if (g_operation_mode == 0x8006)
+		info->p_delay = 0;
+
+    if (g_operation_mode == 0x8002)
+    {
+        CAM_INFO(CAM_SENSOR, "set pipeline delay for bokeh");
+        info->p_delay = 1;
+    }
 
 	return rc;
 }

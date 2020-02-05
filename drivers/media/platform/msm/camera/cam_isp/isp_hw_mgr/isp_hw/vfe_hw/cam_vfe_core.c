@@ -454,7 +454,11 @@ static int cam_vfe_irq_top_half(uint32_t    evt_id,
 	struct cam_vfe_irq_handler_priv     *handler_priv;
 	struct cam_vfe_top_irq_evt_payload  *evt_payload;
 	struct cam_vfe_hw_core_info         *core_info;
+	struct cam_isp_timestamp            timestamp_before_spinlok;
+	struct timespec ts;
 
+	get_monotonic_boottime64(&ts);
+	cam_isp_hw_get_timestamp(&timestamp_before_spinlok);
 	handler_priv = th_payload->handler_priv;
 
 	CAM_DBG(CAM_ISP, "IRQ status_0 = %x", th_payload->evt_status_arr[0]);
@@ -471,7 +475,10 @@ static int cam_vfe_irq_top_half(uint32_t    evt_id,
 	}
 
 	core_info =  handler_priv->core_info;
-	cam_isp_hw_get_timestamp(&evt_payload->ts);
+	evt_payload->ts.mono_time.tv_sec = timestamp_before_spinlok.mono_time.tv_sec;
+	evt_payload->ts.mono_time.tv_usec = timestamp_before_spinlok.mono_time.tv_usec;
+	evt_payload->boot_time = (uint64_t)((ts.tv_sec * 1000000000) +
+		ts.tv_nsec);
 
 	evt_payload->core_index = handler_priv->core_index;
 	evt_payload->core_info  = handler_priv->core_info;
