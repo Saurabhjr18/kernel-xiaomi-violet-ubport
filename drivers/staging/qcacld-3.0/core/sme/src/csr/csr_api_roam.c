@@ -10937,6 +10937,10 @@ void csr_roaming_state_msg_processor(tpAniSirGlobal pMac, void *pMsgBuf)
 		csr_roam_send_disconnect_done_indication(pMac, pSmeRsp);
 		break;
 
+	case eWNI_SME_UPPER_LAYER_ASSOC_CNF:
+		csr_roam_joined_state_msg_processor(pMac, pSmeRsp);
+		break;
+
 	default:
 		sme_debug("Unexpected message type: %d[0x%X] received in substate %s",
 			pSmeRsp->messageType, pSmeRsp->messageType,
