@@ -1287,6 +1287,6 @@ config TOUCHSCREEN_NVT_F7B
 	  module will be called nvt.
 
 source "drivers/input/touchscreen/nvt_touch_f7b/Kconfig"
-source "drivers/input/touchscreen/ft8719_touch_f7b/Kconfig
+source "drivers/input/touchscreen/ft8719_touch_f7b/Kconfig"
 
 endif
