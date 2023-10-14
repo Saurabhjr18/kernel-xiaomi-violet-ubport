@@ -1,4 +1,4 @@
-rn#line 2 "dtc-lexer.lex.c"
+#line 2 "dtc-lexer.lex.c"
 
 #line 4 "dtc-lexer.lex.c"
 
@@ -2256,4 +2256,3 @@ static void lexical_error(const char *fmt, ...)
 
 	treesource_error = true;
 }
-
